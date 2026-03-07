@@ -36,9 +36,15 @@ serve(async (req) => {
       );
     }
 
-    // Check if user already exists
-    const { data: existingUser } = await adminClient.auth.admin.getUserByEmail(email);
-    if (existingUser?.user) {
+    // Check if user already exists by querying auth.users table directly
+    // ✅ FIX: Use table query instead of non-existent getUserByEmail method
+    const { data: existingUser } = await adminClient
+      .from("auth.users")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (existingUser) {
       return new Response(
         JSON.stringify({ error: "An account with this email already exists" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -156,12 +162,13 @@ serve(async (req) => {
     );
 
   } catch (err) {
-  console.error("REGISTER RESTAURANT ERROR:", err);
+    // ✅ FIX: Better error logging and safe error message handling
+    console.error("REGISTER RESTAURANT ERROR:", err);
 
-  return new Response(
-    JSON.stringify({
-      error: err instanceof Error ? err.message : "Unknown error",
-    }),
+    return new Response(
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Unknown error",
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
