@@ -1,0 +1,1 @@
+ALTER TABLE public.restaurant_tables ADD CONSTRAINT unique_table_per_restaurant UNIQUE (table_number, restaurant_id);

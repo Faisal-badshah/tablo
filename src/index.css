@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 35 30% 97%;
+    --foreground: 20 25% 12%;
+    --card: 30 25% 99%;
+    --card-foreground: 20 25% 12%;
+    --popover: 30 25% 99%;
+    --popover-foreground: 20 25% 12%;
+    --primary: 24 85% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 20% 92%;
+    --secondary-foreground: 20 25% 20%;
+    --muted: 30 15% 93%;
+    --muted-foreground: 20 10% 45%;
+    --accent: 15 65% 48%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 24 85% 50%;
+    --radius: 0.75rem;
+    --sidebar-background: 30 20% 96%;
+    --sidebar-foreground: 20 15% 25%;
+    --sidebar-primary: 24 85% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 20% 92%;
+    --sidebar-accent-foreground: 20 15% 25%;
+    --sidebar-border: 30 15% 88%;
+    --sidebar-ring: 24 85% 50%;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 210 20% 90%;
+    --card: 220 18% 15%;
+    --card-foreground: 210 20% 90%;
+    --popover: 220 18% 15%;
+    --popover-foreground: 210 20% 90%;
+    --primary: 142 60% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 20%;
+    --secondary-foreground: 210 20% 85%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 215 15% 55%;
+    --accent: 142 60% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 142 60% 45%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
