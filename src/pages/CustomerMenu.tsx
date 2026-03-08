@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useRestaurant } from '@/context/RestaurantContext';
-import { MENU_CATEGORIES, MenuCategory, formatCurrency } from '../../supabase/types/restaurant';
+import { MENU_CATEGORIES, MenuCategory, formatCurrency } from '@/types/restaurant';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
