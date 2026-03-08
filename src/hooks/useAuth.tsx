@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 
 type AppRole = 'owner' | 'kitchen' | 'billing' | 'super_admin';
-
 export type SubscriptionStatus = 'active' | 'trial' | 'trial_expired' | 'suspended' | null;
 
 interface AuthContextType {
@@ -48,128 +47,97 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [trialEndDate, setTrialEndDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchRoleAndSubscription = useCallback(async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from('user_roles')
-        .select('role, restaurant_id')
-        .eq('user_id', userId)
-        .maybeSingle();
-      
-      const r = (data?.role as AppRole) ?? null;
-      const rId = data?.restaurant_id ?? null;
-      setRole(r);
-      setRestaurantId(rId);
-
-      // Super admins bypass subscription checks
-      if (r === 'super_admin') {
-        setSubscriptionStatus('active');
-        setTrialEndDate(null);
-        return;
-      }
-
-      if (rId) {
-        const { data: restaurant } = await supabase
-          .from('restaurants')
-          .select('status, trial_end_date')
-          .eq('id', rId)
-          .maybeSingle();
-        
-        setSubscriptionStatus(computeSubscriptionStatus(restaurant));
-        setTrialEndDate(restaurant?.trial_end_date ? new Date(restaurant.trial_end_date) : null);
-      } else {
-        setSubscriptionStatus(null);
-        setTrialEndDate(null);
-      }
-    } catch (error) {
-      console.error('Error fetching role and subscription:', error);
-      setRole(null);
-      setRestaurantId(null);
-      setSubscriptionStatus(null);
-      setTrialEndDate(null);
-    }
-  }, []);
-
-  // ✅ SIMPLIFIED: Initialize on mount
+  // ✅ MINIMAL: Just check for existing session on mount
   useEffect(() => {
-    let mounted = true;
-
-    (async () => {
+    const checkSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          await fetchRoleAndSubscription(session.user.id);
+          // Fetch role
+          const { data } = await supabase
+            .from('user_roles')
+            .select('role, restaurant_id')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          
+          setRole((data?.role as AppRole) ?? null);
+          setRestaurantId(data?.restaurant_id ?? null);
+
+          // Fetch restaurant for subscription
+          if (data?.restaurant_id && data.role !== 'super_admin') {
+            const { data: restaurant } = await supabase
+              .from('restaurants')
+              .select('status, trial_end_date')
+              .eq('id', data.restaurant_id)
+              .maybeSingle();
+            
+            setSubscriptionStatus(computeSubscriptionStatus(restaurant));
+            setTrialEndDate(restaurant?.trial_end_date ? new Date(restaurant.trial_end_date) : null);
+          }
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('Session check error:', error);
       } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
-    })();
+    };
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
+    checkSession();
 
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-
-      if (session?.user) {
-        await fetchRoleAndSubscription(session.user.id);
-      } else {
-        setRole(null);
-        setRestaurantId(null);
-        setSubscriptionStatus(null);
-        setTrialEndDate(null);
-      }
     });
 
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
-  }, [fetchRoleAndSubscription]);
+    return () => subscription?.unsubscribe();
+  }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
+    console.log('🔐 Signing in with:', email);
+    
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
+        console.error('❌ Sign in failed:', error.message);
         return { error: error.message, redirect: null };
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log('✅ Sign in successful');
       
+      // Get updated user
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        return { error: 'Login failed', redirect: null };
+        return { error: 'User not found after login', redirect: null };
       }
 
-      // Get user role
+      // Get role
       const { data: roleData } = await supabase
         .from('user_roles')
         .select('role, restaurant_id')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      const r = roleData?.role as AppRole | undefined;
+      const userRole = roleData?.role as AppRole | undefined;
+      console.log('✅ User role:', userRole);
 
-      const redirectMap: Record<string, string> = {
+      const redirectMap: Record<AppRole, string> = {
         kitchen: '/kitchen',
         billing: '/billing',
         owner: '/owner',
         super_admin: '/super-admin',
       };
 
-      return { error: null, redirect: r ? redirectMap[r] : '/' };
+      const redirect = userRole ? redirectMap[userRole] : '/';
+      console.log('✅ Redirecting to:', redirect);
+
+      return { error: null, redirect };
     } catch (err) {
+      console.error('❌ Unexpected error:', err);
       return { 
         error: err instanceof Error ? err.message : 'Login failed',
         redirect: null 
