@@ -83,7 +83,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (error) {
       console.error('Error fetching role and subscription:', error);
-      // Gracefully handle errors - don't crash
       setRole(null);
       setRestaurantId(null);
       setSubscriptionStatus(null);
@@ -91,75 +90,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  // ✅ IMPROVED: Initialize auth state on mount
+  // ✅ SIMPLIFIED: Initialize on mount
   useEffect(() => {
     let mounted = true;
 
-    const initAuth = async () => {
+    (async () => {
       try {
-        // First, check if there's an existing session
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (mounted) {
-          setSession(session);
-          setUser(session?.user ?? null);
-          
-          if (session?.user) {
-            // ✅ FIX: Call immediately without setTimeout
-            await fetchRoleAndSubscription(session.user.id);
-          } else {
-            // No session - clear auth state
-            setRole(null);
-            setRestaurantId(null);
-            setSubscriptionStatus(null);
-            setTrialEndDate(null);
-          }
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        // On error, default to logged out state
-        if (mounted) {
-          setSession(null);
-          setUser(null);
-          setRole(null);
-          setRestaurantId(null);
-          setSubscriptionStatus(null);
-          setTrialEndDate(null);
-        }
-      } finally {
-        // ✅ CRITICAL: Always set loading to false, even on error
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    initAuth();
-
-    // ✅ Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
         if (!mounted) return;
 
         setSession(session);
         setUser(session?.user ?? null);
-
+        
         if (session?.user) {
-          // ✅ FIX: Call immediately without setTimeout
           await fetchRoleAndSubscription(session.user.id);
-        } else {
-          // Clear auth state when logged out
-          setRole(null);
-          setRestaurantId(null);
-          setSubscriptionStatus(null);
-          setTrialEndDate(null);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        if (mounted) {
+          setLoading(false);
         }
       }
-    );
+    })();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        await fetchRoleAndSubscription(session.user.id);
+      } else {
+        setRole(null);
+        setRestaurantId(null);
+        setSubscriptionStatus(null);
+        setTrialEndDate(null);
+      }
+    });
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, [fetchRoleAndSubscription]);
 
@@ -168,17 +143,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       
       if (error) {
-        console.error('Sign in error:', error);
         return { error: error.message, redirect: null };
       }
 
-      // ✅ FIX: Get the user from the session after successful sign in
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        return { error: 'Login failed: user not found', redirect: null };
+        return { error: 'Login failed', redirect: null };
       }
 
+      // Get user role
       const { data: roleData } = await supabase
         .from('user_roles')
         .select('role, restaurant_id')
@@ -186,19 +160,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
 
       const r = roleData?.role as AppRole | undefined;
-      setRole(r ?? null);
-      setRestaurantId(roleData?.restaurant_id ?? null);
-
-      // Fetch subscription for non-super-admins
-      if (r && r !== 'super_admin' && roleData?.restaurant_id) {
-        const { data: restaurant } = await supabase
-          .from('restaurants')
-          .select('status, trial_end_date')
-          .eq('id', roleData.restaurant_id)
-          .maybeSingle();
-        setSubscriptionStatus(computeSubscriptionStatus(restaurant));
-        setTrialEndDate(restaurant?.trial_end_date ? new Date(restaurant.trial_end_date) : null);
-      }
 
       const redirectMap: Record<string, string> = {
         kitchen: '/kitchen',
@@ -209,26 +170,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       return { error: null, redirect: r ? redirectMap[r] : '/' };
     } catch (err) {
-      console.error('Unexpected sign in error:', err);
       return { 
-        error: err instanceof Error ? err.message : 'An unexpected error occurred',
+        error: err instanceof Error ? err.message : 'Login failed',
         redirect: null 
       };
     }
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      setSession(null);
-      setRole(null);
-      setRestaurantId(null);
-      setSubscriptionStatus(null);
-      setTrialEndDate(null);
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    setSession(null);
+    setRole(null);
+    setRestaurantId(null);
+    setSubscriptionStatus(null);
+    setTrialEndDate(null);
   }, []);
 
   return (
