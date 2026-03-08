@@ -84,6 +84,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Error fetching role and subscription:', error);
       // Gracefully handle errors - don't crash
+      setRole(null);
+      setRestaurantId(null);
+      setSubscriptionStatus(null);
+      setTrialEndDate(null);
     }
   }, []);
 
@@ -103,12 +107,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           if (session?.user) {
             // ✅ FIX: Call immediately without setTimeout
             await fetchRoleAndSubscription(session.user.id);
+          } else {
+            // No session - clear auth state
+            setRole(null);
+            setRestaurantId(null);
+            setSubscriptionStatus(null);
+            setTrialEndDate(null);
           }
-          setLoading(false);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        setLoading(false);
+        // On error, default to logged out state
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+          setRole(null);
+          setRestaurantId(null);
+          setSubscriptionStatus(null);
+          setTrialEndDate(null);
+        }
+      } finally {
+        // ✅ CRITICAL: Always set loading to false, even on error
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
