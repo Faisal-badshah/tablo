@@ -17,7 +17,7 @@ function generateSlug(name: string): string {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
+  // ✅ CORS preflight handler
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -29,6 +29,7 @@ serve(async (req) => {
 
     const { restaurant_name, owner_name, email, phone, password } = await req.json();
 
+    // ✅ Input validation
     if (!restaurant_name || !email || !password || password.length < 6) {
       return new Response(
         JSON.stringify({ error: "Missing required fields or password too short" }),
@@ -36,8 +37,16 @@ serve(async (req) => {
       );
     }
 
-    // Check if user already exists by querying auth.users table directly
-    // ✅ FIX: Use table query instead of non-existent getUserByEmail method
+    // ✅ Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email format" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ✅ IMPROVED: Check if user already exists using auth.users table query
     const { data: existingUser } = await adminClient
       .from("auth.users")
       .select("id")
@@ -51,7 +60,7 @@ serve(async (req) => {
       );
     }
 
-    // Check duplicate phone
+    // ✅ Check duplicate phone (if provided)
     if (phone) {
       const { data: phoneCheck } = await adminClient
         .from("restaurants")
@@ -67,7 +76,7 @@ serve(async (req) => {
       }
     }
 
-    // Generate unique slug
+    // ✅ Generate unique slug
     let baseSlug = generateSlug(restaurant_name);
     let slug = baseSlug;
     let attempt = 0;
@@ -85,22 +94,34 @@ serve(async (req) => {
       slug = `${baseSlug}-${attempt}`;
     }
 
-    // Create auth user
-    const { data: newUser, error: userError } =
-      await adminClient.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-      });
+    // ✅ Create auth user with confirmation
+    const { data: newUser, error: userError } = await adminClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    });
 
     if (userError) {
-      return new Response(JSON.stringify({ error: userError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("Auth user creation error:", userError);
+      return new Response(
+        JSON.stringify({ error: userError.message }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Create restaurant
+    // ✅ IMPROVED: Force confirm user immediately for instant login
+    // This ensures users can login right after signup without email verification
+    const { error: confirmError } = await adminClient.auth.admin.updateUserById(
+      newUser.user.id,
+      { email_confirm: true }
+    );
+
+    if (confirmError) {
+      console.error("User confirmation error (non-critical):", confirmError);
+      // Don't fail here - user is created, confirmation is optional
+    }
+
+    // ✅ Create restaurant record
     const { data: restaurant, error: restError } = await adminClient
       .from("restaurants")
       .insert({
@@ -115,59 +136,69 @@ serve(async (req) => {
       .single();
 
     if (restError) {
+      console.error("Restaurant creation error:", restError);
+      // Rollback: delete the auth user
       await adminClient.auth.admin.deleteUser(newUser.user.id);
 
-      return new Response(JSON.stringify({ error: restError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: restError.message }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Assign owner role
-    const { error: roleError } = await adminClient
-      .from("user_roles")
-      .insert({
-        user_id: newUser.user.id,
-        role: "owner",
-        restaurant_id: restaurant.id,
-      });
+    // ✅ Assign owner role
+    const { error: roleError } = await adminClient.from("user_roles").insert({
+      user_id: newUser.user.id,
+      role: "owner",
+      restaurant_id: restaurant.id,
+    });
 
     if (roleError) {
+      console.error("Role assignment error:", roleError);
+      // Rollback: delete restaurant and auth user
       await adminClient.from("restaurants").delete().eq("id", restaurant.id);
       await adminClient.auth.admin.deleteUser(newUser.user.id);
 
-      return new Response(JSON.stringify({ error: roleError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: roleError.message }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Create default tables
+    // ✅ Create 5 default tables
     const defaultTables = [1, 2, 3, 4, 5].map((n) => ({
       table_number: n,
       restaurant_id: restaurant.id,
       status: "available",
     }));
 
-    await adminClient.from("restaurant_tables").insert(defaultTables);
+    const { error: tableError } = await adminClient
+      .from("restaurant_tables")
+      .insert(defaultTables);
 
+    if (tableError) {
+      console.error("Table creation error:", tableError);
+      // Tables failing isn't critical - continue
+    }
+
+    // ✅ Success response
     return new Response(
       JSON.stringify({
         success: true,
         restaurant_id: restaurant.id,
         user_id: newUser.user.id,
         slug,
+        message: "Restaurant created successfully. You can now login.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (err) {
-    // ✅ FIX: Better error logging and safe error message handling
     console.error("REGISTER RESTAURANT ERROR:", err);
 
     return new Response(
       JSON.stringify({
-        error: err instanceof Error ? err.message : "Unknown error",
+        error: err instanceof Error ? err.message : "Unknown server error",
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

@@ -1,4 +1,4 @@
-import { MenuItem, RestaurantTable } from '@/types/restaurant';
+import { MenuItem, RestaurantTable } from '../../supabase/types/restaurant';
 
 export const RESTAURANT_NAME = 'The Spice House';
 

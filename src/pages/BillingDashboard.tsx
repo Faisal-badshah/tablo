@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Receipt, LogOut, Printer, CreditCard, Banknote, History, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatCurrency } from '@/types/restaurant';
+import { formatCurrency } from '../../supabase/types/restaurant';
 import { useAuth } from '@/hooks/useAuth';
 
 interface SessionGroup {

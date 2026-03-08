@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from '@/components/ui/switch';
 import { Settings, LogOut, Plus, Trash2, ShoppingBag, IndianRupee, TrendingUp, Users, Loader2, Download } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { formatCurrency, MENU_CATEGORIES, MenuCategory } from '@/types/restaurant';
+import { formatCurrency, MENU_CATEGORIES, MenuCategory } from '../../supabase/types/restaurant';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
